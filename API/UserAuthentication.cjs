@@ -30,7 +30,9 @@ app.post("/register",
 
             const accessToken = jwt.sign(user, process.env.JWT_KEY);
 
-            res.status(200).json({ "success": true, "token": accessToken })
+            const test = user
+
+            res.status(201).json({ "success": true, "token": accessToken , "test" : test})
         } catch (error) {
             console.log(error)
             res.status(500).send("An error has occurred")
@@ -43,15 +45,23 @@ app.post("/login",
     async function (req, res) {
         try {
             //To do: Add SQL search for matching email, since email will be a unique identifier
-
+            
             //To do
 
-            const foundCombo = {"email" : "xxx" , "password" : "xxx"}
+            const foundCombo = {"email" : "emailer@email.com" , "password" : "$2b$10$.CNEbIT3i6eYqL3AG0CZJ.o.IGbegcj4qFmyomXwvTc0gqXDXUnZO"} //dummy data testpw: wordofpassing
+            const compare = await bcrypt.compare(req.body.password , foundCombo.password);
 
-            if (!bcrypt.compare(foundCombo.password , req.body.password)) {
-                res.status().send("Incorrect username or password.")
+            if (!compare) {
+                res.status(401).send("Incorrect username or password.")
+                return
             }
+            const accessToken = jwt.sign(foundCombo, process.env.JWT_KEY);
 
+            const testuser = jwt.verify(accessToken , process.env.JWT_KEY, (err , user) => {
+                return user
+            })
+
+            res.status(200).json({ "success": true, "token": accessToken , "user" : testuser})
         } catch (error) {
             console.log(error)
             res.status(500).send("An error has occurred")
