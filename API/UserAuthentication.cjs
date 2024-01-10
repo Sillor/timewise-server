@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
+const mysql = require('mysql2/promise');
 
 const app = express();
 
@@ -9,30 +10,72 @@ require('dotenv').config();
 
 const port = process.env.PORT1;
 
+const pool = mysql.createPool({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME
+});
+
+app.use(async function (req, res, next) {
+    try {
+        req.db = await pool.getConnection();
+        req.db.connection.config.namedPlaceholders = true;
+
+        await req.db.query(`SET SESSION sql_mode = "TRADITIONAL"`);
+        await req.db.query(`SET time_zone = '-8:00'`);
+
+        await next();
+
+        req.db.release();
+    } catch (err) {
+        console.log(err);
+
+        if (req.db) req.db.release();
+        throw err;
+    }
+});
+
 app.use(cors());
 
 app.use(express.json());
 
-//Create Account Call. Makes a new account and returns a jwt token
+// Create Account Call. Makes a new account and returns a jwt token
 app.post("/register",
     async function (req, res) {
         try {
-            //To do: Add duplicate check for email in database
+            // Duplicate Email Check
+            const dupeCheckEmail = req.body.email;
 
-            //To do
+            const [testDupes] = await req.db.query(
+                `SELECT * FROM users WHERE email = :dupeCheckEmail AND deleted = 0;`, {
+                    dupeCheckEmail,
+                })
+      
+                if (testDupes.length) {
+                    res.status(409).json({"success" : false , "message" : "Email already in use"});
+                    return
+                }
 
+            // Password Validation
+            if (!validatePassword(req.body.password)) {
+                res.status(400).json({ "success": false, "message": "Password must be at least 12 characters long, contain a special character, and not be a common password." })
+                return
+            }
+
+            // Password Encryption
             const hashPW = await bcrypt.hash(req.body.password, 10)
-            const user = { "email": req.body.email, "password": hashPW }
+            const user = { "email": req.body.email, "hashedPW": hashPW }
 
-            //To do: Add SQL insert into database with hashed password
-
-            //To do
+            // Inserting new user into db
+            await req.db.query('INSERT INTO users (email, hashedPW, deleted) VALUES (:email, :password, 0)', {
+                email: user.email,
+                password: user.hashedPW,
+            });
 
             const accessToken = jwt.sign(user, process.env.JWT_KEY);
 
-            const test = user
-
-            res.status(201).json({ "success": true, "token": accessToken , "test" : test})
+            res.status(201).json({ "success": true, "token": accessToken})
         } catch (error) {
             console.log(error)
             res.status(500).send("An error has occurred")
@@ -40,33 +83,77 @@ app.post("/register",
     }
 )
 
-//Login Account Call. Checks if a username and pass exist in database. If so, returns a jwt token
+// Login Account Call. Checks if a username and pass exist in database. If so, returns a jwt token
 app.post("/login",
     async function (req, res) {
         try {
-            //To do: Add SQL search for matching email, since email will be a unique identifier
-            
-            //To do
+            // Find User in DB
+            const [[user]] = await req.db.query('SELECT * FROM users WHERE email = :email AND deleted = 0', {email: req.body.email});
 
-            const foundCombo = {"email" : "emailer@email.com" , "password" : "$2b$10$.CNEbIT3i6eYqL3AG0CZJ.o.IGbegcj4qFmyomXwvTc0gqXDXUnZO"} //dummy data testpw: wordofpassing
-            const compare = await bcrypt.compare(req.body.password , foundCombo.password);
-
+            // Password Validation
+            const compare = user && validatePassword(req.body.password) && await bcrypt.compare(req.body.password, user.hashedPW);
             if (!compare) {
-                res.status(401).send("Incorrect username or password.")
-                return
+                res.status(401).json({ "success": false, "message": "Incorrect username or password." });
+                return;
             }
-            const accessToken = jwt.sign(foundCombo, process.env.JWT_KEY);
 
-            const testuser = jwt.verify(accessToken , process.env.JWT_KEY, (err , user) => {
-                return user
-            })
+            const accessToken = jwt.sign({"email" : user.email, "hashedPW" : user.hashedPW}, process.env.JWT_KEY);
 
-            res.status(200).json({ "success": true, "token": accessToken , "user" : testuser})
+            res.status(200).json({ "success": true, "token": accessToken})
         } catch (error) {
             console.log(error)
             res.status(500).send("An error has occurred")
         }
     }
 )
+
+// Reset password endpoint. Creates a link with a jwt that can be used to find the email/value pair.
+app.post("/reset", async function (req, res) {
+    const [[user]] = await req.db.query('SELECT * FROM users WHERE email = :email AND deleted = 0', {email: req.body.email});
+
+    const accessToken = jwt.sign({"email" : user.email}, process.env.JWT_KEY2, {expiresIn: '1h'});
+    const link = `http://localhost:${port}/reset-confirm/${accessToken}`;
+
+    res.json({"success" : true, "link" : link});
+})
+
+app.post('/reset-confirm', async function (req, res) {
+    const token = req.body.token;
+    const newPassword = req.body.password;
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_KEY2);
+        const email = decoded.email;
+
+        // Password Validation
+        if (!validatePassword(newPassword)) {
+            res.status(400).json({ "success": false, "message": "Password must be at least 12 characters long, contain a special character, and not be a common password." })
+            return
+        }
+
+        // Password Encryption
+        const hashPW = await bcrypt.hash(newPassword, 10)
+
+        // Inserting new user into db
+        await req.db.query('UPDATE users SET hashedPW = :password WHERE email = :email', {
+            email: email,
+            password: hashPW,
+        });
+
+        res.status(200).json({"success" : true, "message" : "Password has been changed."})
+    } catch (error) {
+        console.log(error);
+        res.status(500).send("An error has occurred")
+    }
+})
+
+function validatePassword(password) {
+    const lengthCheck = password.length >= 12;
+    const specialCheck = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/.test(password);
+    const forbiddenList = ['password', '123', '1234', '12345', '123456'];
+    const forbiddenCheck = !forbiddenList.includes(password.toLowerCase());
+
+    return lengthCheck && specialCheck && forbiddenCheck;
+}
 
 app.listen(port, () => console.log(`Userdata Server listening on http://localhost:${port}`));
