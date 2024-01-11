@@ -16,7 +16,7 @@ const transporter = nodemailer.createTransport({
 function sendConfirmation(recipient, link) {
     const htmlContent = fs.readFileSync('./Mailer/ConfirmReset.html', 'utf8').replace('#', link);
     const mailOptions = {
-        from: "TimeWise.noreplies@gmail.com",
+        from: process.env.EMAIL_USER,
         to: recipient,
         subject: "Password Reset Confirmation",
         html: htmlContent,
