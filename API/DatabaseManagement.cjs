@@ -1,14 +1,13 @@
 const express = require('express');
 const cors = require('cors');
 const jwt = require("jsonwebtoken");
-const bcrypt = require("bcrypt");
 const mysql = require('mysql2/promise');
 
 const app = express();
 
 require('dotenv').config();
 
-const port = process.env.PORT1;
+const port = process.env.PORT2;
 
 const pool = mysql.createPool({
     host: process.env.DB_HOST,
@@ -40,23 +39,138 @@ app.use(cors());
 
 app.use(express.json());
 
-//Load Entries Endpoint.
+//Authenticate Token Middleware
+function authenticateToken(req , res, next) {
+    const authHeader = req.headers["authorization"];
+    const token = authHeader && authHeader.split(" ")[1];
+    if (token == null) {return res.sendStatus(401)};
+  
+    jwt.verify(token , process.env.JWT_KEY , (err , user) => {
+      if (err) {console.log(err) ; return res.sendStatus(403)}
+      req.user = user;
+      next()
+    })
+  }
+  
+  app.use(authenticateToken);
 
+//Load Entries Endpoint.
+app.put("/loadEntries" ,
+  async function(req , res) {
+    try {
+        //Retrieve UserId from Headers
+        const userObj = req.user;
+        const [[queriedUser]] = await req.db.query(
+            `SELECT * FROM users WHERE email = :userEmail AND hashedPW = :userPW AND deleted = 0`,
+            {
+                "userEmail" : userObj.email,
+                "userPW" : userObj.hashedPW
+            }
+        );
+        
+        const targetID = queriedUser.ID
+
+        //Gets array of all entries that belong to a user
+        const [entryList] = await req.db.query(
+            `SELECT * FROM entries WHERE OwnerID = :targetID AND deleted = 0;`,
+            {
+                targetID
+            }
+        )
+
+        res.status(200).json({"success" : true , "data" : entryList})
+    } catch (error) {
+        console.log(error)
+        res.status(500).send("An error has occurred")
+    }
+  }
+
+)
 
 //Load Projects Endpoint.
+app.put("/loadProjects" ,
+  async function(req , res) {
+    try {
+        //Retrieve UserId from Headers
+        const userObj = req.user;
+        const [[queriedUser]] = await req.db.query(
+            `SELECT * FROM users WHERE email = :userEmail AND hashedPW = :userPW AND deleted = 0`,
+            {
+                "userEmail" : userObj.email,
+                "userPW" : userObj.hashedPW
+            }
+        );
+        
+        const targetID = queriedUser.ID
 
+        //Gets array of all entries that belong to a user
+        const [entryList] = await req.db.query(
+            `SELECT * FROM projects WHERE OwnerID = :targetID AND deleted = 0;`,
+            {
+                targetID
+            }
+        )
+
+        res.status(200).json({"success" : true , "data" : entryList})
+    } catch (error) {
+        console.log(error)
+        res.status(500).send("An error has occurred")
+    }
+  }
+
+)
 
 //Create Entry Endpoint.
+app.put("/createEntry" ,
+  async function(req , res) {
+    try {
+        
+    } catch (error) {
+        console.log(error)
+        res.status(500).send("An error has occurred")
+    }
+  }
 
+)
 
 //Create Project Endpoint.
+app.put("/createProject" ,
+  async function(req , res) {
+    try {
+        
+    } catch (error) {
+        console.log(error)
+        res.status(500).send("An error has occurred")
+    }
+  }
 
+)
 
 //Update Entry Endpoint. Also functions as soft delete.
+app.put("/updateEntry" ,
+  async function(req , res) {
+    try {
+        
+    } catch (error) {
+        console.log(error)
+        res.status(500).send("An error has occurred")
+    }
+  }
 
+)
 
 //Update Project Endpoint. Also functions as soft delete.
+app.put("/updateProject" ,
+  async function(req , res) {
+    try {
+        
+    } catch (error) {
+        console.log(error)
+        res.status(500).send("An error has occurred")
+    }
+  }
 
+)
 
 //---User Endpoints That I'm Not Sure If We'll Use---
 
@@ -68,3 +182,6 @@ app.use(express.json());
 
 
 //update User?
+
+
+app.listen(port, () => console.log(`Userdata Server listening on http://localhost:${port}`));
