@@ -120,7 +120,7 @@ app.post("/reset", async function (req, res) {
     const link = `http://localhost:${port}/reset-password?email=${user.email}&token=${accessToken}`;
 
     await sendConfirmation(user.email, link);
-    res.json({ "success": true, "message": `Link sent to ${user.email}`, "link": link });
+    res.json({ "success": true, "message": `Link sent to ${user.email}` });
 });
 
 app.post('/reset-confirm', async function (req, res) {
