@@ -3,7 +3,7 @@ const cors = require('cors');
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const mysql = require('mysql2/promise');
-
+const { sendConfirmation } = require("../Mailer/Mailer.cjs");
 const app = express();
 
 require('dotenv').config();
@@ -49,23 +49,23 @@ app.post("/register",
 
             const [testDupes] = await req.db.query(
                 `SELECT * FROM users WHERE email = :dupeCheckEmail AND deleted = 0;`, {
-                    dupeCheckEmail,
-                })
-      
-                if (testDupes.length) {
-                    res.status(409).json({"success" : false , "message" : "Email already in use"});
-                    return
-                }
+                dupeCheckEmail,
+            });
+
+            if (testDupes.length) {
+                res.status(409).json({ "success": false, "message": "Email already in use" });
+                return;
+            }
 
             // Password Validation
             if (!validatePassword(req.body.password)) {
-                res.status(400).json({ "success": false, "message": "Password must be at least 12 characters long, contain a special character, and not be a common password." })
-                return
+                res.status(400).json({ "success": false, "message": "Password must be at least 12 characters long, contain a special character, and not be a common password." });
+                return;
             }
 
             // Password Encryption
-            const hashPW = await bcrypt.hash(req.body.password, 10)
-            const user = { "email": req.body.email, "hashedPW": hashPW }
+            const hashPW = await bcrypt.hash(req.body.password, 10);
+            const user = { "email": req.body.email, "hashedPW": hashPW };
 
             // Inserting new user into db
             await req.db.query('INSERT INTO users (email, hashedPW, deleted) VALUES (:email, :password, 0)', {
@@ -75,20 +75,20 @@ app.post("/register",
 
             const accessToken = jwt.sign(user, process.env.JWT_KEY);
 
-            res.status(201).json({ "success": true, "token": accessToken})
+            res.status(201).json({ "success": true, "token": accessToken });
         } catch (error) {
-            console.log(error)
-            res.status(500).send("An error has occurred")
+            console.log(error);
+            res.status(500).send("An error has occurred");
         }
     }
-)
+);
 
 // Login Account Call. Checks if a username and pass exist in database. If so, returns a jwt token
 app.post("/login",
     async function (req, res) {
         try {
             // Find User in DB
-            const [[user]] = await req.db.query('SELECT * FROM users WHERE email = :email AND deleted = 0', {email: req.body.email});
+            const [[user]] = await req.db.query('SELECT * FROM users WHERE email = :email AND deleted = 0', { email: req.body.email });
 
             // Password Validation
             const compare = user && validatePassword(req.body.password) && await bcrypt.compare(req.body.password, user.hashedPW);
@@ -97,25 +97,31 @@ app.post("/login",
                 return;
             }
 
-            const accessToken = jwt.sign({"email" : user.email, "hashedPW" : user.hashedPW}, process.env.JWT_KEY);
+            const accessToken = jwt.sign({ "email": user.email, "hashedPW": user.hashedPW }, process.env.JWT_KEY);
 
-            res.status(200).json({ "success": true, "token": accessToken})
+            res.status(200).json({ "success": true, "token": accessToken });
         } catch (error) {
-            console.log(error)
-            res.status(500).send("An error has occurred")
+            console.log(error);
+            res.status(500).send("An error has occurred");
         }
     }
-)
+);
 
 // Reset password endpoint. Creates a link with a jwt that can be used to find the email/value pair.
 app.post("/reset", async function (req, res) {
-    const [[user]] = await req.db.query('SELECT * FROM users WHERE email = :email AND deleted = 0', {email: req.body.email});
+    const [[user]] = await req.db.query('SELECT * FROM users WHERE email = :email AND deleted = 0', { email: req.body.email });
 
-    const accessToken = jwt.sign({"email" : user.email}, process.env.JWT_KEY2, {expiresIn: '1h'});
-    const link = `http://localhost:${port}/reset-confirm/${accessToken}`;
+    if (!user) {
+        res.status(404).json({ "success": false, "message": "No user found with that email address." });
+        return;
+    }
 
-    res.json({"success" : true, "link" : link});
-})
+    const accessToken = jwt.sign({ "email": user.email }, process.env.JWT_KEY2, { expiresIn: '1h' });
+    const link = `http://localhost:${port}/reset-password?email=${user.email}&token=${accessToken}`;
+
+    await sendConfirmation(user.email, link);
+    res.json({ "success": true, "message": `Link sent to ${user.email}`, "link": link });
+});
 
 app.post('/reset-confirm', async function (req, res) {
     const token = req.body.token;
@@ -127,12 +133,12 @@ app.post('/reset-confirm', async function (req, res) {
 
         // Password Validation
         if (!validatePassword(newPassword)) {
-            res.status(400).json({ "success": false, "message": "Password must be at least 12 characters long, contain a special character, and not be a common password." })
-            return
+            res.status(400).json({ "success": false, "message": "Password must be at least 12 characters long, contain a special character, and not be a common password." });
+            return;
         }
 
         // Password Encryption
-        const hashPW = await bcrypt.hash(newPassword, 10)
+        const hashPW = await bcrypt.hash(newPassword, 10);
 
         // Inserting new user into db
         await req.db.query('UPDATE users SET hashedPW = :password WHERE email = :email', {
@@ -140,12 +146,12 @@ app.post('/reset-confirm', async function (req, res) {
             password: hashPW,
         });
 
-        res.status(200).json({"success" : true, "message" : "Password has been changed."})
+        res.status(200).json({ "success": true, "message": "Password has been changed." });
     } catch (error) {
         console.log(error);
-        res.status(500).send("An error has occurred")
+        res.status(500).send("An error has occurred");
     }
-})
+});
 
 function validatePassword(password) {
     const lengthCheck = password.length >= 12;
