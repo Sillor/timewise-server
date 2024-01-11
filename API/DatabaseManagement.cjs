@@ -109,6 +109,22 @@ app.put("/createEntry",
       //Retrieve UserId from Headers
       const targetID = await findUID(req.user, req);
 
+      //To do: Create project ID finder function
+
+      //To do:
+
+      await req.db.query(
+        `INSERT INTO entries (OwnerID , ParentProjectID , Summary , StartTime , EndTime , deleted)
+        VALUES (:OwnerID, :ParentProjectID , :Summary , :Start , :End , false)`,
+        {
+          "OwnerID": targetID,
+          "Summary": req.body.summary,
+          "ParentProjectID": targetParentID,
+          "Start": req.body.start,
+          "End": req.body.end
+        }
+      );
+      res.status(200).json({ "success": true })
     } catch (error) {
       console.log(error)
       res.status(500).send("An error has occurred")
@@ -121,9 +137,23 @@ app.put("/createEntry",
 app.put("/createProject",
   async function (req, res) {
     try {
+
       //Retrieve UserId from Headers
       const targetID = await findUID(req.user, req);
 
+      //Project Duplicate Checker
+      const [testDupes] = await req.db.query(
+        `SELECT * FROM projects WHERE ProjectName = :ProjectName AND OwnerID = :OwnerID AND deleted = 0;`, {
+        "ProjectName" : req.body.projectName,
+        "OwnerID" : targetID,
+      })
+
+      if (testDupes.length) {
+        res.status(409).json({ "success": false, "message": "Project already exists" });
+        return
+      }
+
+      //Add project to database
       await req.db.query(
         `INSERT INTO projects (ProjectName , OwnerID , deleted)
         VALUES (:projectName , :OwnerID , false)`,
@@ -132,7 +162,7 @@ app.put("/createProject",
           "OwnerID": targetID
         }
       );
-      res.status(200).json({ "success": true})
+      res.status(200).json({ "success": true })
     } catch (error) {
       console.log(error)
       res.status(500).send("An error has occurred")
