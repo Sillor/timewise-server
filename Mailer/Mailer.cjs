@@ -19,9 +19,6 @@ function sendConfirmation(recipient, link) {
         from: "TimeWise.noreplies@gmail.com",
         to: recipient,
         subject: "Password Reset Confirmation",
-        // text: "Your password reset request has been received. Here is your unique link for the password reset. Please keep it confidential and use it within the next hour:\n\n"
-        //     + link +
-        //     "\n\nIf you did not request a password reset, please ignore this email.\n\nBest regards,\nTimeWise Team",
         html: htmlContent,
     };
 
