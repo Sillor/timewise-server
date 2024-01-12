@@ -14,12 +14,17 @@ const transporter = nodemailer.createTransport({
 });
 
 function sendConfirmation(recipient, link) {
-    const htmlContent = fs.readFileSync('./Mailer/ConfirmReset.html', 'utf8').replace('#', link);
+    const htmlContent = fs.readFileSync('./Mailer/ConfirmReset.html', 'utf8').replace('#link', link);
     const mailOptions = {
         from: process.env.EMAIL_USER,
         to: recipient,
         subject: "Password Reset Confirmation",
         html: htmlContent,
+        attachments: [{
+            filename: 'Logo.png',
+            path: './Mailer/img/Logo.png',
+            cid: 'logo'
+        }]
     };
 
     transporter.sendMail(mailOptions, (error, info) => {
