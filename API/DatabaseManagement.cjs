@@ -86,12 +86,14 @@ app.put("/loadProjects",
       const targetID = await findUID(req.user, req);
 
       //Gets array of all entries that belong to a user
-      const [entryList] = await req.db.query(
-        `SELECT * FROM projects WHERE OwnerID = :targetID AND deleted = 0;`,
+      const [entryListRaw] = await req.db.query(
+        `SELECT ProjectName FROM projects WHERE OwnerID = :targetID AND deleted = 0;`,
         {
           targetID
         }
       )
+      
+      const entryList = entryListRaw.map(x => x.ProjectName);
 
       res.status(200).json({ "success": true, "data": entryList })
     } catch (error) {
@@ -109,15 +111,29 @@ app.put("/createEntry",
       //Retrieve UserId from Headers
       const targetID = await findUID(req.user, req);
 
-      //To do: Create project ID finder function
+      //Project ID finder function
+        const [[targetProject]] = await req.db.query(
+          `SELECT * FROM projects WHERE ProjectName = :ParentProjectName AND OwnerID = :OwnerID AND deleted = false;`,
+          {
+            "ParentProjectName" : req.body.parentProject,
+            "OwnerID" : targetID
+          }
+        )
+        const targetParentID = targetProject.ID
+        
+        //LocalID generator
+        const newLocalID = Array.from(Array(254), () => Math.floor(Math.random() * 36).toString(36)).join('');
 
-      //To do:
+        //To do: LocalID duplicate checker, just in case
+
+        //To do:
 
       await req.db.query(
-        `INSERT INTO entries (OwnerID , ParentProjectID , Summary , StartTime , EndTime , deleted)
-        VALUES (:OwnerID, :ParentProjectID , :Summary , :Start , :End , false)`,
+        `INSERT INTO entries (OwnerID , LocalID, ParentProjectID , Summary , StartTime , EndTime , deleted)
+        VALUES (:OwnerID , :LocalID , :ParentProjectID , :Summary , :Start , :End , false);`,
         {
           "OwnerID": targetID,
+          "LocalID" : newLocalID,
           "Summary": req.body.summary,
           "ParentProjectID": targetParentID,
           "Start": req.body.start,
@@ -193,6 +209,23 @@ app.put("/updateProject",
       //Retrieve UserId from Headers
       const targetID = await findUID(req.user, req);
 
+      const updateDeleted = req.body.deleted === null ? false : req.body.deleted;
+
+      console.log(updateDeleted)
+
+      await req.db.query(
+        `UPDATE projects 
+        SET ProjectName = :projectNameNew , deleted = :deleted
+        WHERE ProjectName = :projectNameOld AND OwnerID = :OwnerID AND deleted = false;`,
+        {
+          "projectNameOld" : req.body.projectNameOld,
+          "projectNameNew" : req.body.projectNameNew,
+          "OwnerID" : targetID,
+          "deleted" : updateDeleted
+        }
+      )
+
+      res.status(200).json({ "success": true })
     } catch (error) {
       console.log(error)
       res.status(500).send("An error has occurred")
