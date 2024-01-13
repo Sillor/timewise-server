@@ -63,7 +63,7 @@ app.put("/loadEntries",
 
       //Gets array of all entries that belong to a user
       const [entryList] = await req.db.query(
-        `SELECT * FROM entries WHERE OwnerID = :targetID AND deleted = 0;`,
+        `SELECT entries.LocalID as localID , entries.Summary as summary , entries.StartTime as start , entries.EndTime as end , projects.ProjectName as parentProject FROM timewisetestserver.entries LEFT JOIN timewisetestserver.projects ON entries.ParentProjectID = projects.ID WHERE projects.deleted=false AND entries.deleted = false;`,
         {
           targetID
         }
