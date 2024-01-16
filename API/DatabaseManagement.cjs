@@ -92,7 +92,7 @@ app.put("/loadProjects",
           targetID
         }
       )
-      
+
       const entryList = entryListRaw.map(x => x.ProjectName);
 
       res.status(200).json({ "success": true, "data": entryList })
@@ -112,28 +112,28 @@ app.put("/createEntry",
       const targetID = await findUID(req.user, req);
 
       //Project ID finder function
-        const [[targetProject]] = await req.db.query(
-          `SELECT * FROM projects WHERE ProjectName = :ParentProjectName AND OwnerID = :OwnerID AND deleted = false;`,
-          {
-            "ParentProjectName" : req.body.parentProject,
-            "OwnerID" : targetID
-          }
-        )
-        const targetParentID = targetProject.ID
-        
-        //LocalID generator
-        const newLocalID = Array.from(Array(254), () => Math.floor(Math.random() * 36).toString(36)).join('');
+      const [[targetProject]] = await req.db.query(
+        `SELECT * FROM projects WHERE ProjectName = :ParentProjectName AND OwnerID = :OwnerID AND deleted = false;`,
+        {
+          "ParentProjectName": req.body.parentProject,
+          "OwnerID": targetID
+        }
+      )
+      const targetParentID = targetProject.ID
 
-        //To do: LocalID duplicate checker, just in case
+      //LocalID generator
+      const newLocalID = Array.from(Array(254), () => Math.floor(Math.random() * 36).toString(36)).join('');
 
-        //To do:
+      //To do: LocalID duplicate checker, just in case
+
+      //To do:
 
       await req.db.query(
         `INSERT INTO entries (OwnerID , LocalID, ParentProjectID , Summary , StartTime , EndTime , deleted)
         VALUES (:OwnerID , :LocalID , :ParentProjectID , :Summary , :Start , :End , false);`,
         {
           "OwnerID": targetID,
-          "LocalID" : newLocalID,
+          "LocalID": newLocalID,
           "Summary": req.body.summary,
           "ParentProjectID": targetParentID,
           "Start": req.body.start,
@@ -160,8 +160,8 @@ app.put("/createProject",
       //Project Duplicate Checker
       const [testDupes] = await req.db.query(
         `SELECT * FROM projects WHERE ProjectName = :ProjectName AND OwnerID = :OwnerID AND deleted = 0;`, {
-        "ProjectName" : req.body.projectName,
-        "OwnerID" : targetID,
+        "ProjectName": req.body.projectName,
+        "OwnerID": targetID,
       })
 
       if (testDupes.length) {
@@ -194,6 +194,32 @@ app.put("/updateEntry",
       //Retrieve UserId from Headers
       const targetID = await findUID(req.user, req);
 
+      const updateDeleted = req.body.deleted === null ? false : req.body.deleted;
+
+      const [[targetProject]] = await req.db.query(
+        `SELECT * FROM projects WHERE ProjectName = :ParentProjectName AND OwnerID = :OwnerID AND deleted = false;`,
+        {
+          "ParentProjectName": req.body.parentProject,
+          "OwnerID": targetID
+        }
+      )
+      const targetParentID = targetProject.ID
+
+      req.db.query(
+        `UPDATE entries
+        SET Summary = :summary , StartTime = :start , EndTime = end , ParentProjectID = :parentProjectID , deleted = :deleted
+        WHERE OwnerID = :ownerID AND LocalID = :localID`,
+        {
+          "ownerID": targetID,
+          "localID": req.body.localID,
+          "summary": req.body.summary,
+          "start": req.body.start,
+          "end": req.body.end,
+          "parentProjectID": targetParentID,
+          "deleted": updateDeleted
+        }
+      )
+
     } catch (error) {
       console.log(error)
       res.status(500).send("An error has occurred")
@@ -211,17 +237,26 @@ app.put("/updateProject",
 
       const updateDeleted = req.body.deleted === null ? false : req.body.deleted;
 
-      console.log(updateDeleted)
+      const [testDupes] = await req.db.query( //TESTING NEEDED
+        `SELECT * FROM projects WHERE ProjectName = :ProjectName AND OwnerID = :OwnerID AND deleted = 0;`, {
+        "ProjectName": req.body.projectNameNew,
+        "OwnerID": targetID,
+      })
+
+      if (testDupes.length) {
+        res.status(409).json({ "success": false, "message": "Project already exists" });
+        return
+      }
 
       await req.db.query(
         `UPDATE projects 
         SET ProjectName = :projectNameNew , deleted = :deleted
         WHERE ProjectName = :projectNameOld AND OwnerID = :OwnerID AND deleted = false;`,
         {
-          "projectNameOld" : req.body.projectNameOld,
-          "projectNameNew" : req.body.projectNameNew,
-          "OwnerID" : targetID,
-          "deleted" : updateDeleted
+          "projectNameOld": req.body.projectNameOld,
+          "projectNameNew": req.body.projectNameNew,
+          "OwnerID": targetID,
+          "deleted": updateDeleted
         }
       )
 
