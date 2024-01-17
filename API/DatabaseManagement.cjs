@@ -63,9 +63,11 @@ app.put("/loadEntries",
 
       //Gets array of all entries that belong to a user
       const [entryList] = await req.db.query(
-        `SELECT entries.LocalID as localID , entries.Summary as summary , entries.StartTime as start , entries.EndTime as end , projects.ProjectName as parentProject FROM timewisetestserver.entries LEFT JOIN timewisetestserver.projects ON entries.ParentProjectID = projects.ID WHERE projects.deleted=false AND entries.deleted = false;`,
+        `SELECT entries.LocalID as localID , entries.Summary as summary, entries.StartTime as start , entries.EndTime as end , projects.ProjectName as parentProject
+        FROM entries LEFT JOIN projects on entries.ParentProjectID = projects.ID
+        WHERE entries.OwnerID = :OwnerID AND entries.deleted = false`,
         {
-          targetID
+          "OwnerID" : targetID
         }
       )
 
@@ -86,14 +88,12 @@ app.put("/loadProjects",
       const targetID = await findUID(req.user, req);
 
       //Gets array of all entries that belong to a user
-      const [entryListRaw] = await req.db.query(
-        `SELECT ProjectName FROM projects WHERE OwnerID = :targetID AND deleted = 0;`,
+      const [entryList] = await req.db.query(
+        `SELECT projects.ProjectName as projectName, SUM(entries.HoursSpent) as totalTime FROM entries LEFT JOIN projects ON entries.ParentProjectID = projects.ID WHERE entries.deleted = false AND entries.OwnerID = :OwnerID GROUP BY entries.ParentProjectID;`,
         {
-          targetID
+          "OwnerID" : targetID
         }
       )
-
-      const entryList = entryListRaw.map(x => x.ProjectName);
 
       res.status(200).json({ "success": true, "data": entryList })
     } catch (error) {
@@ -120,13 +120,29 @@ app.put("/createEntry",
         }
       )
       const targetParentID = targetProject.ID
-
+      
       //LocalID generator
       const newLocalID = Array.from(Array(254), () => Math.floor(Math.random() * 36).toString(36)).join('');
+      
+      const [testLID] = await req.db.query(`
+      SELECT * FROM entries WHERE OwnerID = :OwnerId AND LocalID = :LocalID
+      `,
+      {
+        "OwnerID" : targetID,
+        "LocalID" : newLocalID
+      })
 
-      //To do: LocalID duplicate checker, just in case
-
-      //To do:
+      while(testLID.length)  {//needs testing
+        newLocalID = Array.from(Array(254), () => Math.floor(Math.random() * 36).toString(36)).join('')
+        
+        testLID = await req.db.quey(`
+        SELECT * FROM entries WHERE OwnerID = :OwnerId AND LocalID = :LocalID
+        `,
+        {
+          "OwnerID" : targetID,
+          "LocalID" : newLocalID
+        });
+      }
 
       await req.db.query(
         `INSERT INTO entries (OwnerID , LocalID, ParentProjectID , Summary , StartTime , EndTime , deleted)
@@ -208,7 +224,7 @@ app.put("/updateEntry",
       req.db.query(
         `UPDATE entries
         SET Summary = :summary , StartTime = :start , EndTime = end , ParentProjectID = :parentProjectID , deleted = :deleted
-        WHERE OwnerID = :ownerID AND LocalID = :localID`,
+        WHERE OwnerID = :ownerID AND LocalID = :localID AND deleted = false`,
         {
           "ownerID": targetID,
           "localID": req.body.localID,
@@ -238,7 +254,7 @@ app.put("/updateProject",
       const updateDeleted = req.body.deleted === null ? false : req.body.deleted;
 
       const [testDupes] = await req.db.query( //TESTING NEEDED
-        `SELECT * FROM projects WHERE ProjectName = :ProjectName AND OwnerID = :OwnerID AND deleted = 0;`, {
+        `SELECT * FROM projects WHERE ProjectName = :ProjectName AND OwnerID = :OwnerID AND deleted = false;`, {
         "ProjectName": req.body.projectNameNew,
         "OwnerID": targetID,
       })
