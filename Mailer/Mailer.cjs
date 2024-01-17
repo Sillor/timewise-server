@@ -1,4 +1,5 @@
 const nodemailer = require("nodemailer");
+const fs = require('fs');
 require('dotenv').config();
 
 const transporter = nodemailer.createTransport({
@@ -13,13 +14,17 @@ const transporter = nodemailer.createTransport({
 });
 
 function sendConfirmation(recipient, link) {
+    const htmlContent = fs.readFileSync('./Mailer/ConfirmReset.html', 'utf8').replace('#link', link);
     const mailOptions = {
-        from: "TimeWise.noreplies@gmail.com",
+        from: process.env.EMAIL_USER,
         to: recipient,
         subject: "Password Reset Confirmation",
-        text: "Your password reset request has been received. Here is your unique link for the password reset. Please keep it confidential and use it within the next hour:\n\n"
-            + link +
-            "\n\nIf you did not request a password reset, please ignore this email.\n\nBest regards,\nTimeWise Team",
+        html: htmlContent,
+        attachments: [{
+            filename: 'Logo.png',
+            path: './Mailer/img/Logo.png',
+            cid: 'logo'
+        }]
     };
 
     transporter.sendMail(mailOptions, (error, info) => {
