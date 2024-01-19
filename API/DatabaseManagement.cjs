@@ -294,6 +294,27 @@ app.put("/updateProject",
 //Create User?
 
 
+//Delete User Endpoint
+app.delete('/deleteUser/:id', async function(req, res) {
+  try {
+    // Retrieve user id from request
+    const { id } = req.params;
+
+    await req.db.query(
+      `UPDATE users SET deleted = true WHERE ID = :id;`,
+      {
+        "id": id
+      }
+    )
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("An error has occurred");
+  }
+});
+
+
 //update User?
 
 
