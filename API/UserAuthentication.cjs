@@ -3,6 +3,7 @@ const cors = require('cors');
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const mysql = require('mysql2/promise');
+const cookieParser = require("cookie-parser")
 const { sendConfirmation } = require("../Mailer/Mailer.cjs");
 const app = express();
 
@@ -40,6 +41,20 @@ app.use(cors());
 
 app.use(express.json());
 
+app.use(cookieParser());
+
+app.use((req, res, next) => {
+    res.secureCookie = (name, val, options = {}) => {
+        res.cookie(name, val, {
+            sameSite: "strict",
+            httpOnly: true,
+            secure: process.env.NODE_ENV !== "development",
+            ...options,
+        });
+    };
+    next();
+});
+
 // Create Account Call. Makes a new account and returns a jwt token
 app.post("/register",
     async function (req, res) {
@@ -74,8 +89,8 @@ app.post("/register",
             });
 
             const accessToken = jwt.sign(user, process.env.JWT_KEY);
-
-            res.status(201).json({ "success": true, "token": accessToken });
+            res.secureCookie("token", accessToken)
+            res.status(201).json({ "success": true });
         } catch (error) {
             console.log(error);
             res.status(500).send("An error has occurred");
@@ -98,8 +113,8 @@ app.post("/login",
             }
 
             const accessToken = jwt.sign({ "email": user.email, "hashedPW": user.hashedPW }, process.env.JWT_KEY);
-
-            res.status(200).json({ "success": true, "token": accessToken });
+            res.secureCookie("token", accessToken)
+            res.status(200).json({ "success": true });
         } catch (error) {
             console.log(error);
             res.status(500).send("An error has occurred");
@@ -124,7 +139,7 @@ app.post("/reset", async function (req, res) {
 });
 
 app.post('/reset-confirm', async function (req, res) {
-    const token = req.body.token;
+    const token = req.cookies.token;
     const newPassword = req.body.password;
 
     try {
@@ -152,6 +167,11 @@ app.post('/reset-confirm', async function (req, res) {
         res.status(500).send("An error has occurred");
     }
 });
+
+app.post("/logout", async function(req, res) {
+  res.clearCookie("token")
+  res.sendStatus(200)
+})
 
 function validatePassword(password) {
     const lengthCheck = password.length >= 12;

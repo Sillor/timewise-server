@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require("jsonwebtoken");
 const mysql = require('mysql2/promise');
+const cookieParser = require("cookie-parser")
 
 const app = express();
 
@@ -39,10 +40,11 @@ app.use(cors());
 
 app.use(express.json());
 
+app.use(cookieParser())
+
 //Authenticate Token Middleware
 function authenticateToken(req, res, next) {
-  const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1];
+  const token = req.cookies.token
   if (token == null) { return res.sendStatus(401) };
 
   jwt.verify(token, process.env.JWT_KEY, (err, user) => {
