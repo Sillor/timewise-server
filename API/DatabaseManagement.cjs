@@ -300,13 +300,10 @@ app.delete('/deleteUser/:id', async function(req, res) {
     // Retrieve user id from request
     const { id } = req.params;
 
-    const updateDeleted = req.body.deleted === null ? false : req.body.deleted;
-
     await req.db.query(
-      `UPDATE users SET deleted = :deleted WHERE ID = :id;`,
+      `UPDATE users SET deleted = true WHERE ID = :id;`,
       {
-        "id": id,
-        "deleted": updateDeleted
+        "id": id
       }
     )
 
