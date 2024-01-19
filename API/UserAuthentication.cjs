@@ -3,6 +3,7 @@ const cors = require('cors');
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const mysql = require('mysql2/promise');
+const logger = require("./loggerMiddleware.cjs");
 
 const app = express();
 
@@ -49,16 +50,20 @@ app.post("/register",
 
             const [testDupes] = await req.db.query(
                 `SELECT * FROM users WHERE email = :dupeCheckEmail AND deleted = 0;`, {
-                    dupeCheckEmail,
-                })
-      
-                if (testDupes.length) {
-                    res.status(409).json({"success" : false , "message" : "Email already in use"});
-                    return
-                }
+                dupeCheckEmail,
+            })
+
+            if (testDupes.length) {
+                await logger(req, req.body.email, "register", "users", null, false)
+
+                res.status(409).json({ "success": false, "message": "Email already in use" });
+                return
+            }
 
             // Password Validation
             if (!validatePassword(req.body.password)) {
+                await logger(req, req.body.email, "register", "users", null, false)
+
                 res.status(400).json({ "success": false, "message": "Password must be at least 12 characters long, contain a special character, and not be a common password." })
                 return
             }
@@ -75,7 +80,15 @@ app.post("/register",
 
             const accessToken = jwt.sign(user, process.env.JWT_KEY);
 
-            res.status(201).json({ "success": true, "token": accessToken})
+            const [[NewID]] = await req.db.query(`SELECT * FROM users WHERE email = :Email`,
+                {
+                    "Email": req.body.email
+                }
+            );
+
+            await logger(req, req.body.email, "register", "users", NewID.ID, true)
+
+            res.status(201).json({ "success": true, "token": accessToken })
         } catch (error) {
             console.log(error)
             res.status(500).send("An error has occurred")
@@ -88,18 +101,29 @@ app.post("/login",
     async function (req, res) {
         try {
             // Find User in DB
-            const [[user]] = await req.db.query('SELECT * FROM users WHERE email = :email AND deleted = 0', {email: req.body.email});
+            const [[user]] = await req.db.query('SELECT * FROM users WHERE email = :email AND deleted = 0', { email: req.body.email });
 
             // Password Validation
             const compare = user && validatePassword(req.body.password) && await bcrypt.compare(req.body.password, user.hashedPW);
             if (!compare) {
+
+                await logger(req.body.email, "login", "users", null, false)
+
                 res.status(401).json({ "success": false, "message": "Incorrect username or password." });
                 return;
             }
 
-            const accessToken = jwt.sign({"email" : user.email, "hashedPW" : user.hashedPW}, process.env.JWT_KEY);
+            const accessToken = jwt.sign({ "email": user.email, "hashedPW": user.hashedPW }, process.env.JWT_KEY);
 
-            res.status(200).json({ "success": true, "token": accessToken})
+            const [[NewID]] = await req.db.query(`SELECT * FROM users WHERE email = :Email`,
+                {
+                    "Email": req.body.email
+                }
+            );
+
+            await logger(req, req.body.email, "login", "users", NewID.ID, true)
+
+            res.status(200).json({ "success": true, "token": accessToken })
         } catch (error) {
             console.log(error)
             res.status(500).send("An error has occurred")
@@ -109,12 +133,20 @@ app.post("/login",
 
 // Reset password endpoint. Creates a link with a jwt that can be used to find the email/value pair.
 app.post("/reset", async function (req, res) {
-    const [[user]] = await req.db.query('SELECT * FROM users WHERE email = :email AND deleted = 0', {email: req.body.email});
+    const [[user]] = await req.db.query('SELECT * FROM users WHERE email = :email AND deleted = 0', { email: req.body.email });
 
-    const accessToken = jwt.sign({"email" : user.email}, process.env.JWT_KEY2, {expiresIn: '1h'});
+    const accessToken = jwt.sign({ "email": user.email }, process.env.JWT_KEY2, { expiresIn: '1h' });
     const link = `http://localhost:${port}/reset-confirm/${accessToken}`;
 
-    res.json({"success" : true, "link" : link});
+    const [[NewID]] = await req.db.query(`SELECT * FROM users WHERE email = :Email`,
+        {
+            "Email": req.body.email
+        }
+    );
+
+    await logger(req, req.body.email, "resetPW", "users", NewID.ID, true)
+
+    res.json({ "success": true, "link": link });
 })
 
 app.post('/reset-confirm', async function (req, res) {
@@ -127,6 +159,15 @@ app.post('/reset-confirm', async function (req, res) {
 
         // Password Validation
         if (!validatePassword(newPassword)) {
+
+            const [[NewID]] = await req.db.query(`SELECT * FROM users WHERE email = :Email`,
+                {
+                    "Email": email
+                }
+            );
+
+            await logger(req, email, "resetPW-Confirm", "users", NewID.ID, false)
+
             res.status(400).json({ "success": false, "message": "Password must be at least 12 characters long, contain a special character, and not be a common password." })
             return
         }
@@ -140,7 +181,15 @@ app.post('/reset-confirm', async function (req, res) {
             password: hashPW,
         });
 
-        res.status(200).json({"success" : true, "message" : "Password has been changed."})
+        const [[NewID]] = await req.db.query(`SELECT * FROM users WHERE email = :Email`,
+            {
+                "Email": email
+            }
+        );
+
+        await logger(req, email, "resetPW-Confirm", "users", NewID.ID, true)
+
+        res.status(200).json({ "success": true, "message": "Password has been changed." })
     } catch (error) {
         console.log(error);
         res.status(500).send("An error has occurred")
