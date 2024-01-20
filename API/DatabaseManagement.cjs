@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require("jsonwebtoken");
 const mysql = require('mysql2/promise');
-const logger = require("loggerMiddleware.cjs");
+const logger = require("./loggerMiddleware.cjs");
 
 const app = express();
 
@@ -72,6 +72,8 @@ app.put("/loadEntries",
         }
       )
 
+      await logger(req, req.user.email, "loadEntries", "entries", targetID, true)
+
       res.status(200).json({ "success": true, "data": entryList })
     } catch (error) {
       console.log(error)
@@ -95,6 +97,8 @@ app.put("/loadProjects",
           "OwnerID": targetID
         }
       )
+
+      await logger(req, req.user.email, "loadProjects", "projects/entries", targetID, true)
 
       res.status(200).json({ "success": true, "data": entryList })
     } catch (error) {
@@ -157,6 +161,15 @@ app.put("/createEntry",
           "End": req.body.end
         }
       );
+
+      const [[NewID]] = await req.db.query(`SELECT * FROM entries WHERE LocalID = :LocalID`,
+        {
+          "LocalID": newLocalID
+        }
+      );
+
+      await logger(req, req.user.email, "createEntry", "entries", NewID.ID, true)
+
       res.status(200).json({ "success": true })
     } catch (error) {
       console.log(error)
@@ -176,12 +189,22 @@ app.put("/createProject",
 
       //Project Duplicate Checker
       const [testDupes] = await req.db.query(
-        `SELECT * FROM projects WHERE ProjectName = :ProjectName AND OwnerID = :OwnerID AND deleted = 0;`, {
+        `SELECT * FROM projects WHERE ProjectName = :ProjectName AND OwnerID = :OwnerID AND deleted = false;`, {
         "ProjectName": req.body.projectName,
         "OwnerID": targetID,
       })
 
       if (testDupes.length) {
+
+        const [[NewID]] = await req.db.query(`SELECT * FROM projects WHERE ProjectName = :projectName AND OwnerID = :ownerID AND deleted = false`,
+          {
+            "projectName": req.body.projectName,
+            "ownerID": targetID
+          }
+        );
+
+        await logger(req, req.user.email, "createProject", "projects", NewID.ID, false)
+
         res.status(409).json({ "success": false, "message": "Project already exists" });
         return
       }
@@ -195,6 +218,16 @@ app.put("/createProject",
           "OwnerID": targetID
         }
       );
+
+      const [[NewID]] = await req.db.query(`SELECT * FROM projects WHERE ProjectName = :projectName AND OwnerID = :ownerID AND deleted = false`,
+        {
+          "projectName": req.body.projectName,
+          "ownerID": targetID
+        }
+      );
+
+      await logger(req, req.user.email, "createProject", "projects", NewID.ID, true)
+
       res.status(200).json({ "success": true })
     } catch (error) {
       console.log(error)
@@ -237,6 +270,15 @@ app.put("/updateEntry",
         }
       )
 
+      const [[NewID]] = await req.db.query(`SELECT * FROM entries WHERE LocalID = :localID AND OwnerID = :ownerID AND deleted = false`,
+        {
+          "localID": req.body.projectName,
+          "ownerID": targetID
+        }
+      );
+
+      await logger(req, req.user.email, "createProject", "projects", NewID.ID, true)
+
     } catch (error) {
       console.log(error)
       res.status(500).send("An error has occurred")
@@ -262,6 +304,16 @@ app.put("/updateProject",
         })
 
       if (testDupes.length && req.body.deleted == undefined) {
+
+        const [[NewID]] = await req.db.query(`SELECT * FROM projects WHERE ProjectName = :projectName AND OwnerID = :ownerID AND deleted = false`,
+          {
+            "projectName": req.body.projectNameNew,
+            "ownerID": targetID
+          }
+        );
+
+        await logger(req, req.user.email, "createProject", "projects", NewID.ID, false)
+
         res.status(409).json({ "success": false, "message": "Project already exists" });
         return
       }
@@ -277,6 +329,27 @@ app.put("/updateProject",
           "deleted": updateDeleted
         }
       )
+
+      if (updateDeleted == false) {
+        const [[NewID]] = await req.db.query(`SELECT * FROM projects WHERE ProjectName = :projectName AND OwnerID = :ownerID AND deleted = false`,
+          {
+            "projectName": req.body.projectNameNew,
+            "ownerID": targetID
+          }
+        );
+
+        await logger(req, req.user.email, "createProject", "projects", NewID.ID, true)
+      }
+      else {
+        const [[NewID]] = await req.db.query(`SELECT * FROM projects WHERE ProjectName = :projectName AND OwnerID = :ownerID AND deleted = true`,
+          {
+            "projectName": req.body.projectNameNew,
+            "ownerID": targetID
+          }
+        );
+
+        await logger(req, req.user.email, "createProject", "projects", NewID.ID, true)
+      }
 
       res.status(200).json({ "success": true })
     } catch (error) {
@@ -301,7 +374,7 @@ app.put("/loadUsers",
         `SELECT email FROM users`
       )
 
-      res.status(200).json({ "success": true , "data" : dataList})
+      res.status(200).json({ "success": true, "data": dataList })
 
     } catch (error) {
       console.log(error)
