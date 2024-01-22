@@ -36,11 +36,15 @@ app.use(async function (req, res, next) {
   }
 });
 
-app.use(cors());
 
 app.use(express.json());
 
 app.use(cookieParser())
+
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true,
+}));
 
 //Authenticate Token Middleware
 function authenticateToken(req, res, next) {

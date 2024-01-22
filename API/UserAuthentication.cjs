@@ -37,18 +37,21 @@ app.use(async function (req, res, next) {
     }
 });
 
-app.use(cors());
-
 app.use(express.json());
 
 app.use(cookieParser());
+
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true,
+}));
 
 app.use((req, res, next) => {
     res.secureCookie = (name, val, options = {}) => {
         res.cookie(name, val, {
             sameSite: "strict",
             httpOnly: true,
-            secure: process.env.NODE_ENV !== "development",
+            secure: true,
             ...options,
         });
     };
