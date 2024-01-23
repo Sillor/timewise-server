@@ -277,7 +277,7 @@ app.put("/updateEntry",
         }
       );
 
-      await logger(req, req.user.email, "createProject", "projects", NewID.ID, true)
+      await logger(req, req.user.email, "updateEntry", "projects", NewID.ID, true)
 
     } catch (error) {
       console.log(error)
@@ -312,7 +312,7 @@ app.put("/updateProject",
           }
         );
 
-        await logger(req, req.user.email, "createProject", "projects", NewID.ID, false)
+        await logger(req, req.user.email, "updateProject", "projects", NewID.ID, false)
 
         res.status(409).json({ "success": false, "message": "Project already exists" });
         return
@@ -338,7 +338,7 @@ app.put("/updateProject",
           }
         );
 
-        await logger(req, req.user.email, "createProject", "projects", NewID.ID, true)
+        await logger(req, req.user.email, "updateProject", "projects", NewID.ID, true)
       }
       else {
         const [[NewID]] = await req.db.query(`SELECT * FROM projects WHERE ProjectName = :projectName AND OwnerID = :ownerID AND deleted = true`,
@@ -348,7 +348,7 @@ app.put("/updateProject",
           }
         );
 
-        await logger(req, req.user.email, "createProject", "projects", NewID.ID, true)
+        await logger(req, req.user.email, "updateProject", "projects", NewID.ID, true)
       }
 
       res.status(200).json({ "success": true })
