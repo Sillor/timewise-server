@@ -142,7 +142,7 @@ app.post("/reset", async function (req, res) {
 });
 
 app.post('/reset-confirm', async function (req, res) {
-    const token = req.cookies.token;
+    const token = req.body.token;
     const newPassword = req.body.password;
 
     try {
