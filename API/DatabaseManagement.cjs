@@ -73,7 +73,7 @@ app.put("/loadEntries",
         FROM entries LEFT JOIN projects on entries.ParentProjectID = projects.ID
         WHERE entries.OwnerID = :OwnerID AND entries.deleted = false`,
         {
-          "OwnerID" : targetID
+          "OwnerID": targetID
         }
       )
 
@@ -97,7 +97,7 @@ app.put("/loadProjects",
       const [entryList] = await req.db.query(
         `SELECT projects.ProjectName as projectName, coalesce(SUM(entries.HoursSpent),'000000') as totalTime FROM projects LEFT JOIN entries ON  projects.ID = entries.ParentProjectID WHERE entries.deleted = false AND entries.OwnerID = :OwnerID || projects.OwnerID = :OwnerID GROUP BY projects.ID;`,
         {
-          "OwnerID" : targetID
+          "OwnerID": targetID
         }
       )
 
@@ -126,28 +126,28 @@ app.put("/createEntry",
         }
       )
       const targetParentID = targetProject.ID
-      
+
       //LocalID generator
       const newLocalID = Array.from(Array(254), () => Math.floor(Math.random() * 36).toString(36)).join('');
-      
+
       const [testLID] = await req.db.query(`
       SELECT * FROM entries WHERE OwnerID = :OwnerId AND LocalID = :LocalID
       `,
-      {
-        "OwnerID" : targetID,
-        "LocalID" : newLocalID
-      })
+        {
+          "OwnerID": targetID,
+          "LocalID": newLocalID
+        })
 
-      while(testLID.length)  {//needs testing
+      while (testLID.length) {//needs testing
         newLocalID = Array.from(Array(254), () => Math.floor(Math.random() * 36).toString(36)).join('')
-        
+
         testLID = await req.db.quey(`
         SELECT * FROM entries WHERE OwnerID = :OwnerId AND LocalID = :LocalID
         `,
-        {
-          "OwnerID" : targetID,
-          "LocalID" : newLocalID
-        });
+          {
+            "OwnerID": targetID,
+            "LocalID": newLocalID
+          });
       }
 
       await req.db.query(
@@ -257,15 +257,16 @@ app.put("/updateProject",
       //Retrieve UserId from Headers
       const targetID = await findUID(req.user, req);
 
-      const updateDeleted = req.body.deleted === null ? false : req.body.deleted;
+      const updateDeleted = req.body.deleted ? req.body.deleted : false;
 
       const [testDupes] = await req.db.query( //TESTING NEEDED
-        `SELECT * FROM projects WHERE ProjectName = :ProjectName AND OwnerID = :OwnerID AND deleted = false;`, {
-        "ProjectName": req.body.projectNameNew,
-        "OwnerID": targetID,
-      })
+        `SELECT * FROM projects WHERE ProjectName = :ProjectName AND OwnerID = :OwnerID AND deleted = false;`,
+        {
+          "ProjectName": req.body.projectNameNew,
+          "OwnerID": targetID,
+        })
 
-      if (testDupes.length) {
+      if (testDupes.length && req.body.deleted == undefined) {
         res.status(409).json({ "success": false, "message": "Project already exists" });
         return
       }
@@ -295,7 +296,24 @@ app.put("/updateProject",
 
 
 //Load Users?
+app.put("/loadUsers",
+  async function (req, res) {
+    try {
+      //Retrieve UserId from Headers
+      const targetID = await findUID(req.user, req);
 
+      const [dataList] = await req.db.query(
+        `SELECT email FROM users`
+      )
+
+      res.status(200).json({ "success": true , "data" : dataList})
+
+    } catch (error) {
+      console.log(error)
+      res.status(500).send("An error has occurred")
+    }
+  }
+)
 
 //Create User?
 
