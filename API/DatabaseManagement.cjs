@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require("jsonwebtoken");
 const mysql = require('mysql2/promise');
+const cookieParser = require("cookie-parser")
 
 const app = express();
 
@@ -35,14 +36,19 @@ app.use(async function (req, res, next) {
   }
 });
 
-app.use(cors());
 
 app.use(express.json());
 
+app.use(cookieParser())
+
+app.use(cors({
+  origin: `http://localhost:${process.env.CLIENT_PORT}`,
+  credentials: true,
+}));
+
 //Authenticate Token Middleware
 function authenticateToken(req, res, next) {
-  const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1];
+  const token = req.cookies.token
   if (token == null) { return res.sendStatus(401) };
 
   jwt.verify(token, process.env.JWT_KEY, (err, user) => {
@@ -89,7 +95,7 @@ app.put("/loadProjects",
 
       //Gets array of all entries that belong to a user
       const [entryList] = await req.db.query(
-        `SELECT projects.ProjectName as projectName, SUM(entries.HoursSpent) as totalTime FROM entries LEFT JOIN projects ON entries.ParentProjectID = projects.ID WHERE entries.deleted = false AND entries.OwnerID = :OwnerID and projects.deleted = false GROUP BY entries.ParentProjectID;`,
+        `SELECT projects.ProjectName as projectName, coalesce(SUM(entries.HoursSpent),'000000') as totalTime FROM projects LEFT JOIN entries ON  projects.ID = entries.ParentProjectID WHERE entries.deleted = false AND entries.OwnerID = :OwnerID || projects.OwnerID = :OwnerID GROUP BY projects.ID;`,
         {
           "OwnerID": targetID
         }
@@ -310,6 +316,27 @@ app.put("/loadUsers",
 )
 
 //Create User?
+
+
+//Delete User Endpoint
+app.delete('/deleteUser/:id', async function(req, res) {
+  try {
+    // Retrieve user id from request
+    const { id } = req.params;
+
+    await req.db.query(
+      `UPDATE users SET deleted = true WHERE ID = :id;`,
+      {
+        "id": id
+      }
+    )
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("An error has occurred");
+  }
+});
 
 
 //update User?
