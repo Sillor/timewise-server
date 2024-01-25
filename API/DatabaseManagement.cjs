@@ -303,7 +303,7 @@ app.put("/loadUsers",
       const targetID = await findUID(req.user, req);
 
       const [dataList] = await req.db.query(
-        `SELECT email FROM users`
+        `SELECT ID, email FROM users WHERE deleted = false`
       )
 
       res.status(200).json({ "success": true , "data" : dataList})
