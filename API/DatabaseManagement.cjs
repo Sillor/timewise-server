@@ -296,14 +296,14 @@ app.put("/updateProject",
 
 
 //Load Users?
-app.put("/loadUsers",
+app.get("/loadUsers",
   async function (req, res) {
     try {
       //Retrieve UserId from Headers
       const targetID = await findUID(req.user, req);
 
       const [dataList] = await req.db.query(
-        `SELECT email FROM users`
+        `SELECT ID, email FROM users WHERE deleted = false`
       )
 
       res.status(200).json({ "success": true , "data" : dataList})
