@@ -296,7 +296,7 @@ app.put("/updateProject",
 
 
 //Load Users?
-app.put("/loadUsers",
+app.get("/loadUsers",
   async function (req, res) {
     try {
       //Retrieve UserId from Headers
