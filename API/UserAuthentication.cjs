@@ -135,7 +135,7 @@ app.post("/reset", async function (req, res) {
     }
 
     const accessToken = jwt.sign({ "email": user.email }, process.env.JWT_KEY2, { expiresIn: '1h' });
-    const link = `http://localhost:${port}/reset-password?email=${user.email}&token=${accessToken}`;
+    const link = `http://localhost:${process.env.CLIENT_PORT}/reset-password?email=${user.email}&token=${accessToken}`;
 
     await sendConfirmation(user.email, link);
     res.json({ "success": true, "message": `Link sent to ${user.email}` });
