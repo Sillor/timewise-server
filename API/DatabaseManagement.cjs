@@ -2,7 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require("jsonwebtoken");
 const mysql = require('mysql2/promise');
-const cookieParser = require("cookie-parser")
+const cookieParser = require("cookie-parser");
+const bcrypt = require("bcrypt");
 
 const app = express();
 
@@ -295,7 +296,7 @@ app.put("/updateProject",
 //---User Endpoints That I'm Not Sure If We'll Use---
 
 
-//Load Users?
+//Load Users Endpoint
 app.get("/loadUsers",
   async function (req, res) {
     try {
@@ -315,8 +316,43 @@ app.get("/loadUsers",
   }
 )
 
-//Create User?
+//Create User Endpoint
+app.post("/createUser",
+  async function (req, res) {
+    try {
+      // Duplicate Email Check
+      const dupeCheckEmail = req.body.email;
 
+      const [testDupes] = await req.db.query(
+          `SELECT * FROM users WHERE email = :dupeCheckEmail AND deleted = 0;`, {
+          dupeCheckEmail
+      });
+
+      if (testDupes.length) {
+          res.status(409).json({ "success": false, "message": "Email already in use" });
+          return;
+      }
+
+      // Assign Default Password
+      const password = "testingtime@default";
+
+      // Password Encryption
+      const hashPW = await bcrypt.hash(password, 10);
+      const user = { "email": req.body.email, "hashedPW": hashPW };
+
+      // Inserting new user into db
+      await req.db.query('INSERT INTO users (email, hashedPW, deleted) VALUES (:email, :password, 0)', {
+          email: user.email,
+          password: user.hashedPW,
+      });
+
+      res.status(201).json({ "success": true });
+    } catch (error) {
+      console.log(error)
+      res.status(500).send("An error has occurred")
+    }
+  }
+)
 
 //Delete User Endpoint
 app.delete('/deleteUser/:id', async function(req, res) {
