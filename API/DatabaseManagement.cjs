@@ -381,7 +381,7 @@ app.get("/loadUsers",
         `SELECT ID, email FROM users WHERE deleted = false`
       );
 
-      res.status(200).json({ "success": true , "data" : dataList})
+      res.status(200).json({ "success": true, "data": dataList, "currentUserID": targetID})
 
     } catch (error) {
       console.log(error)
