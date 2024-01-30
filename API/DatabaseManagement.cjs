@@ -99,8 +99,15 @@ app.put("/loadProjects",
       const targetID = await findUID(req.user, req);
 
       //Gets array of all entries that belong to a user
-      const [entryList] = await req.db.query(
-        `SELECT projects.ProjectName as projectName, coalesce(SUM(entries.HoursSpent),'000000') as totalTime FROM projects LEFT JOIN entries ON  projects.ID = entries.ParentProjectID WHERE entries.deleted = false AND entries.OwnerID = :OwnerID || projects.OwnerID = :OwnerID GROUP BY projects.ID;`,
+      const [entryList] = await req.db.query(// ChatGPT created query
+        `SELECT
+          projects.ProjectName as projectName,
+          IFNULL(SEC_TO_TIME(SUM(CASE WHEN (entries.deleted = false OR entries.deleted IS NULL) THEN TIME_TO_SEC(entries.HoursSpent) ELSE 0 END)), '00:00:00') as totalTime
+        FROM projects
+        LEFT JOIN entries ON projects.ID = entries.ParentProjectID AND (entries.OwnerID = :OwnerID OR projects.OwnerID = :OwnerID)
+        WHERE projects.OwnerID = :OwnerID
+        GROUP BY projects.ID;
+        `,
         {
           "OwnerID": targetID
         }
@@ -263,9 +270,9 @@ app.put("/updateEntry",
       )
       const targetParentID = targetProject.ID
 
-      req.db.query(
+      await req.db.query(
         `UPDATE entries
-        SET Summary = :summary , StartTime = :start , EndTime = end , ParentProjectID = :parentProjectID , deleted = :deleted
+        SET Summary = :summary , StartTime = :start , EndTime = :end , ParentProjectID = :parentProjectID , deleted = :deleted
         WHERE OwnerID = :ownerID AND LocalID = :localID AND deleted = false`,
         {
           "ownerID": targetID,
@@ -277,6 +284,7 @@ app.put("/updateEntry",
           "deleted": updateDeleted
         }
       )
+      res.status(200).json({ "success": true });
 
       const [[NewID]] = await req.db.query(`SELECT * FROM entries WHERE LocalID = :localID AND OwnerID = :ownerID AND deleted = false`,
         {
