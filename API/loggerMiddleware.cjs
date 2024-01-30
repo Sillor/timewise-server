@@ -77,5 +77,3 @@ async function logRequest(req , reqEmail , reqOperation , reqTable , reqTarget ,
 }
 
 module.exports = logRequest
-
-app.listen(port, () => console.log(`Userdata Server listening on http://localhost:${port}`));
