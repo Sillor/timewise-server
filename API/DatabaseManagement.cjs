@@ -286,9 +286,9 @@ app.put("/updateEntry",
       )
       res.status(200).json({ "success": true });
 
-      const [[NewID]] = await req.db.query(`SELECT * FROM entries WHERE LocalID = :localID AND OwnerID = :ownerID AND deleted = false`,
+      const [[NewID]] = await req.db.query(`SELECT * FROM entries WHERE LocalID = :localID AND OwnerID = :ownerID`,
         {
-          "localID": req.body.projectName,
+          "localID": req.body.localID,
           "ownerID": targetID
         }
       );
